@@ -8,15 +8,16 @@ import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "hardhat/console.sol";
 
+//import the helper functions from the contract
+import {Base64} from "./libraries/Base64.sol";
+
 contract MyEpicNFT is ERC721URIStorage {
     using Counters for Counters.Counter;
     Counters.Counter private _tokenIds;
 
-    // make a baseSvg variable here that all NFTs can use.
     string baseSvg =
         "<svg xmlns='http://www.w3.org/2000/svg' preserveAspectRatio='xMinYMin meet' viewBox='0 0 350 350'><style>.base { fill: white; font-family: serif; font-size: 24px; }</style><rect width='100%' height='100%' fill='black' /><text x='50%' y='50%' class='base' dominant-baseline='middle' text-anchor='middle'>";
 
-    // created three arrays, each with their own theme of random words.
     string[] firstWords = [
         "Cat",
         "Dog",
@@ -75,17 +76,14 @@ contract MyEpicNFT is ERC721URIStorage {
         console.log("This is my NFT contract. Woah!");
     }
 
-    // created a function to randomly pick a word from each array.
     function pickRandomFirstWord(uint256 tokenId)
         public
         view
         returns (string memory)
     {
-        // seed the random generator
         uint256 rand = random(
             string(abi.encodePacked("FIRST_WORD", Strings.toString(tokenId)))
         );
-        // Squash the # between 0 and the length of the array to avoid going out of bounds.
         rand = rand % firstWords.length;
         return firstWords[rand];
     }
@@ -121,22 +119,54 @@ contract MyEpicNFT is ERC721URIStorage {
     function makeAnEpicNFT() public {
         uint256 newItemId = _tokenIds.current();
 
-        //randomly grab one word from each of the three arrays.
         string memory first = pickRandomFirstWord(newItemId);
         string memory second = pickRandomSecondWord(newItemId);
         string memory third = pickRandomThirdWord(newItemId);
-
-        // concatenate it all together, and then close the <text> and <svg> tags.
-        string memory finalSvg = string(
-            abi.encodePacked(baseSvg, first, second, third, "</text></svg>")
+        string memory combinedWord = string(
+            abi.encodePacked(first, second, third)
         );
+
+        string memory finalSvg = string(
+            abi.encodePacked(baseSvg, combinedWord, "</text></svg>")
+        );
+
+        // Get all the JSON metadata in place and base64 encode it.
+        string memory json = Base64.encode(
+            bytes(
+                string(
+                    abi.encodePacked(
+                        '{"name": "',
+                        // set the title of our NFT as the generated word.
+                        combinedWord,
+                        '", "description": "A highly acclaimed collection of squares.", "image": "data:image/svg+xml;base64,',
+                        // add data:image/svg+xml;base64 and then append base64 encode svg.
+                        Base64.encode(bytes(finalSvg)),
+                        '"}'
+                    )
+                )
+            )
+        );
+
+        // prepend data:application/json;base64, to data.
+        string memory finalTokenUri = string(
+            abi.encodePacked("data:application/json;base64,", json)
+        );
+
         console.log("\n--------------------");
-        console.log(finalSvg);
+        console.log(
+            string(
+                abi.encodePacked(
+                    "https://nftpreview.0xdev.codes/?code=",
+                    finalTokenUri
+                )
+            )
+        );
         console.log("--------------------\n");
 
         _safeMint(msg.sender, newItemId);
 
-        _setTokenURI(newItemId, "blah");
+        // Update URI
+        _setTokenURI(newItemId, finalTokenUri);
 
         _tokenIds.increment();
         console.log(
